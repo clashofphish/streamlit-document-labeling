@@ -115,9 +115,9 @@ const DrawableCanvas = ({args}: ComponentProps) => {
             bgImage.onload = function () {
                 backgroundCanvas.getContext().drawImage(bgImage, 0, 0);
             };
-            const params = new URLSearchParams(window.location.search);
-            const baseUrl = params.get('streamlitUrl')
-            bgImage.src = baseUrl + backgroundImageURL;
+            // const params = new URLSearchParams(window.location.search);
+            // const baseUrl = params.get('streamlitUrl')
+            bgImage.src = backgroundImageURL; // baseUrl + backgroundImageURL;
         }
     }, [
         canvas,

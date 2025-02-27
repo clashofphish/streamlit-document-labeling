@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from hashlib import md5
 
 import streamlit.components.v1 as components
-import streamlit.elements.image as st_image
+
+# import streamlit.elements.image as st_image
+import streamlit as st
 from PIL import Image
 
 from .processor import DataProcessor
@@ -15,12 +17,14 @@ _RELEASE = False  # on packaging, pass this to True
 if not _RELEASE:
     _component_func = components.declare_component(
         "st_sparrow_labeling",
-        url="http://localhost:3001",
+        url="http://localhost:3000",
     )
 else:
     parent_dir = os.path.dirname(os.path.abspath(__file__))
     build_dir = os.path.join(parent_dir, "frontend/build")
-    _component_func = components.declare_component("st_sparrow_labeling", path=build_dir)
+    _component_func = components.declare_component(
+        "st_sparrow_labeling", path=build_dir
+    )
 
 
 @dataclass
@@ -64,23 +68,23 @@ def _image_dimensions_rescale(canvas_width, doc_width, doc_height) -> tuple:
 
 
 def st_sparrow_labeling(
-        fill_color: str = "#eee",
-        stroke_width: int = 20,
-        stroke_color: str = "black",
-        background_color: str = "",
-        background_image: Image = None,
-        update_streamlit: bool = True,
-        height: int = 400,
-        width: int = 600,
-        drawing_mode: str = "freedraw",
-        initial_rects: dict = None,
-        display_toolbar: bool = True,
-        point_display_radius: int = 3,
-        canvas_width: int = 600,
-        doc_height: int = 400,
-        doc_width: int = 600,
-        image_rescale: bool = False,
-        key=None,
+    fill_color: str = "#eee",
+    stroke_width: int = 20,
+    stroke_color: str = "black",
+    background_color: str = "",
+    background_image: Image = None,
+    update_streamlit: bool = True,
+    height: int = 400,
+    width: int = 600,
+    drawing_mode: str = "freedraw",
+    initial_rects: dict = None,
+    display_toolbar: bool = True,
+    point_display_radius: int = 3,
+    canvas_width: int = 600,
+    doc_height: int = 400,
+    doc_width: int = 600,
+    image_rescale: bool = False,
+    key=None,
 ) -> CanvasResult:
     """Create a drawing canvas in Streamlit app. Retrieve the RGBA image data into a 4D numpy array (r, g, b, alpha)
     on mouse up event.
@@ -151,17 +155,32 @@ def st_sparrow_labeling(
     if background_image:
         background_image = _resize_img(background_image, height, width)
         # Reduce network traffic and cache when switch another configure, use streamlit in-mem filemanager to convert image to URL
-        background_image_url = st_image.image_to_url(
-            background_image, width, True, "RGB", "PNG",
-            f"drawable-canvas-bg-{md5(background_image.tobytes()).hexdigest()}-{key}"
+
+        def pillow_image_to_base64_string(img):
+            buffered = io.BytesIO()
+            img.save(buffered, format="PNG", quality=100)
+            return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+        background_image_url = "data:image/png;base64," + pillow_image_to_base64_string(
+            background_image
         )
+        # st_image.image_to_url(
+        #     background_image,
+        #     width,
+        #     True,
+        #     "RGB",
+        #     "PNG",
+        #     f"drawable-canvas-bg-{md5(background_image.tobytes()).hexdigest()}-{key}",
+        # )
         # always send relative URLs, the frontend handles this
-        if background_image_url[0] == '/':
-            background_image_url = background_image_url[1:]
+        # if background_image_url[0] == "/":
+        #     background_image_url = background_image_url[1:]
         background_color = ""
 
     data_processor = DataProcessor()
-    canvas_rects = data_processor.prepare_canvas_data(initial_rects, background_color, doc_height, doc_width, height, width)
+    canvas_rects = data_processor.prepare_canvas_data(
+        initial_rects, background_color, doc_height, doc_width, height, width
+    )
 
     component_value = _component_func(
         fillColor=fill_color,
@@ -183,9 +202,11 @@ def st_sparrow_labeling(
     if component_value is None:
         return
 
-    rects = data_processor.prepare_rect_data(component_value["raw"], initial_rects, doc_height, doc_width, height, width)
+    rects = data_processor.prepare_rect_data(
+        component_value["raw"], initial_rects, doc_height, doc_width, height, width
+    )
 
     return CanvasResult(
         rects,
-        component_value['selectIndex'] if 'selectIndex' in component_value else None
+        component_value["selectIndex"] if "selectIndex" in component_value else None,
     )
