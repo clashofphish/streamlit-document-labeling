@@ -16,8 +16,9 @@ class DataProcessor:
 
         payload = {
             "version": "4.4.0",
-            "objects": canvas_rects,
+            "objects": [],
             "background": background_color,
+            "backgroundObjects": canvas_rects,  # Add OCR text boxes to background layer
         }
 
         return payload
@@ -34,6 +35,9 @@ class DataProcessor:
             - round((rect["rect"]["x1"] * width) / doc_width),
             "height": round((rect["rect"]["y2"] * height) / doc_height)
             - round((rect["rect"]["y1"] * height) / doc_height),
+            "text": rect["text"],
+            "line_n": rect["line_n"],
+            "word_n": rect["word_n"],
             "fill": "rgba(0, 151, 255, 0.3)",
             "stroke": "rgba(0, 50, 255, 0.7)",
             "strokeWidth": 2,
@@ -120,7 +124,9 @@ class DataProcessor:
                 "x2": x2,
                 "y2": y2,
             },
-            "value": initial_rect["text"],
+            "text": initial_rect["text"],
+            "line_n": initial_rect["line_n"],
+            "word_n": initial_rect["word_n"],
             "label": "",  # initial_rect["label"],
         }
 

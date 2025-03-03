@@ -49,7 +49,7 @@ def save_and_continue(config, current_index, selected_classes, result_rects):
                 writer.writerow(data)
 
 
-def run(img_file, rects_file, labels, show_ocr_boxes, config, current_index):
+def run(img_file, rects_file, labels, config, current_index):
     ui_width = st_js.st_javascript("window.innerWidth")
 
     docImg = Image.open(img_file)
@@ -65,16 +65,16 @@ def run(img_file, rects_file, labels, show_ocr_boxes, config, current_index):
     else:
         saved_state = st.session_state["saved_state"]
 
+    show_ocr_boxes = st.checkbox("Show OCR Boxes", True)
+
     assign_labels = st.checkbox("Assign Labels", True)
     mode = "transform" if assign_labels else "rect"
-
-    data_processor = DataProcessor()
 
     col1, col2 = st.columns([4, 6])
 
     with col1:
-        height = 1296  # 1024  # 1296
-        width = 864  # 792  # 864
+        height = 1296  # 1024
+        width = 864  # 792
 
         doc_height = saved_state["meta"]["image_size"]["height"]
         doc_width = saved_state["meta"]["image_size"]["width"]
@@ -106,11 +106,7 @@ def run(img_file, rects_file, labels, show_ocr_boxes, config, current_index):
         )
 
         st.caption(
-            "Check 'Assign Labels' to enable editing of labels and values, move and resize the boxes to "
-            "annotate the document."
-        )
-        st.caption(
-            "Add annotations by clicking and dragging on the document, when 'Assign Labels' is unchecked."
+            "Check 'Assign Labels' to enable editing of labels and values, move and resize the boxes to annotate the document.\n\nDraw a selection box around a set of OCR bounding boxes to concatenate the text within those boxes."
         )
 
     with col2:
@@ -141,46 +137,21 @@ def run(img_file, rects_file, labels, show_ocr_boxes, config, current_index):
         with st.container():
             if result_rects is not None:
                 with st.form(key="fields_form"):
-                    if (
-                        result_rects.current_rect_index is not None
-                        and result_rects.current_rect_index != -1
-                    ):
-                        st.write(
-                            "Selected Field: ",
-                            result_rects.rects_data["words"][
-                                result_rects.current_rect_index
-                            ]["value"],
+                    for i, rect in enumerate(result_rects.rects_data["words"]):
+                        selected_text = concatenate_text_within_selection(
+                            rect, saved_state["words"]
+                        )
+                        st.text_area(
+                            f"Text {i + 1}",
+                            selected_text,
+                            key=f"text_{i}",
+                            height=100,
+                        )
+                        st.text_input(
+                            f"Label {i + 1}",
+                            key=f"label_{i}",
                         )
                         st.markdown("---")
-
-                    if ui_width > 1500:
-                        render_form_wide(
-                            result_rects.rects_data["words"],
-                            labels,
-                            result_rects,
-                            data_processor,
-                        )
-                    elif ui_width > 1000:
-                        render_form_avg(
-                            result_rects.rects_data["words"],
-                            labels,
-                            result_rects,
-                            data_processor,
-                        )
-                    elif ui_width > 500:
-                        render_form_narrow(
-                            result_rects.rects_data["words"],
-                            labels,
-                            result_rects,
-                            data_processor,
-                        )
-                    else:
-                        render_form_mobile(
-                            result_rects.rects_data["words"],
-                            labels,
-                            result_rects,
-                            data_processor,
-                        )
 
                     submit = st.form_submit_button("Save and Continue", type="primary")
                     back = st.form_submit_button("Back")
@@ -202,81 +173,21 @@ def run(img_file, rects_file, labels, show_ocr_boxes, config, current_index):
                         st.rerun()
 
 
-def render_form_wide(words, labels, result_rects, data_processor):
-    col1_form, col2_form, col3_form, col4_form = st.columns([1, 1, 1, 1])
-    num_rows = math.ceil(len(words) / 4)
-
-    for i, rect in enumerate(words):
-        if i < num_rows:
-            with col1_form:
-                render_form_element(rect, labels, i, result_rects, data_processor)
-        elif i < num_rows * 2:
-            with col2_form:
-                render_form_element(rect, labels, i, result_rects, data_processor)
-        elif i < num_rows * 3:
-            with col3_form:
-                render_form_element(rect, labels, i, result_rects, data_processor)
-        else:
-            with col4_form:
-                render_form_element(rect, labels, i, result_rects, data_processor)
+def concatenate_text_within_selection(selection_rect, words):
+    selected_texts = []
+    for word in words:
+        if is_within_selection(selection_rect, word["rect"]):
+            selected_texts.append(word["text"])
+    return "\n".join(selected_texts)
 
 
-def render_form_avg(words, labels, result_rects, data_processor):
-    col1_form, col2_form, col3_form = st.columns([1, 1, 1])
-    num_rows = math.ceil(len(words) / 3)
-
-    for i, rect in enumerate(words):
-        if i < num_rows:
-            with col1_form:
-                render_form_element(rect, labels, i, result_rects, data_processor)
-        elif i < num_rows * 2:
-            with col2_form:
-                render_form_element(rect, labels, i, result_rects, data_processor)
-        else:
-            with col3_form:
-                render_form_element(rect, labels, i, result_rects, data_processor)
-
-
-def render_form_narrow(words, labels, result_rects, data_processor):
-    col1_form, col2_form = st.columns([1, 1])
-    num_rows = math.ceil(len(words) / 2)
-
-    for i, rect in enumerate(words):
-        if i < num_rows:
-            with col1_form:
-                render_form_element(rect, labels, i, result_rects, data_processor)
-        else:
-            with col2_form:
-                render_form_element(rect, labels, i, result_rects, data_processor)
-
-
-def render_form_mobile(words, labels, result_rects, data_processor):
-    for i, rect in enumerate(words):
-        render_form_element(rect, labels, i, result_rects, data_processor)
-
-
-def render_form_element(rect, labels, i, result_rects, data_processor):
-    print(f"**Rect example: {rect}")
-    default_index = 0
-    if rect["label"]:
-        default_index = labels.index(rect["labels"])
-
-    value = st.text_input(
-        "Value",
-        rect["value"],
-        key=f"field_value_{i}",
-        disabled=False if i == result_rects.current_rect_index else True,
+def is_within_selection(selection_rect, word_rect):
+    return (
+        word_rect["x1"] >= selection_rect["rect"]["x1"]
+        and word_rect["y1"] >= selection_rect["rect"]["y1"]
+        and word_rect["x2"] <= selection_rect["rect"]["x2"]
+        and word_rect["y2"] <= selection_rect["rect"]["y2"]
     )
-    label = st.selectbox(
-        "Label",
-        labels,
-        key=f"label_{i}",
-        index=default_index,
-        disabled=False if i == result_rects.current_rect_index else True,
-    )
-    st.markdown("---")
-
-    data_processor.update_rect_data(result_rects.rects_data, i, value, label)
 
 
 def canvas_available_width(ui_width):
@@ -302,13 +213,11 @@ if __name__ == "__main__":
     config = load_config_dataframe(data_config_dir)
     print(f"**Config: {config.loc[0, 'image_file_path']}")
 
-    show_ocr_boxes = st.checkbox("Show OCR Boxes", True)
     current_index = st.session_state.get("current_index", 0)
     run(
         config.loc[current_index, "image_file_path"],
         config.loc[current_index, "ocr_file_path"],
         custom_labels,
-        show_ocr_boxes,
         config,
         current_index,
     )

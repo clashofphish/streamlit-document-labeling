@@ -192,7 +192,7 @@ def st_sparrow_labeling(
         canvasHeight=height,
         canvasWidth=width,
         drawingMode=drawing_mode,
-        initialDrawing=canvas_rects,
+        initialDrawing={"rects": canvas_rects, "backgroundObjects": []},
         displayToolbar=display_toolbar,
         displayRadius=point_display_radius,
         key=key,

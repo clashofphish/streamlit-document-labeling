@@ -26,9 +26,15 @@ export interface PythonArgs {
     canvasWidth: number
     canvasHeight: number
     drawingMode: string
-    initialDrawing: Object
+    initialDrawing: InitialDrawing
     displayToolbar: boolean
     displayRadius: number
+}
+
+interface InitialDrawing {
+    rects: {
+        backgroundObjects: any[]
+    }
 }
 
 /**
@@ -53,15 +59,10 @@ const DrawableCanvas = ({args}: ComponentProps) => {
     /**
      * State initialization
      */
-    const [canvas, setCanvas] = useState(new fabric.Canvas(""))
-    canvas.stopContextMenu = true
-    canvas.fireRightClick = true
-
+    const [canvas, setCanvas] = useState<fabric.Canvas | null>(null)
+    const [backgroundCanvas, setBackgroundCanvas] = useState<fabric.StaticCanvas | null>(null)
     const [selectedRect, setSelectedRect] = useState(-1)
 
-    const [backgroundCanvas, setBackgroundCanvas] = useState(
-        new fabric.StaticCanvas("")
-    )
     const {
         canvasState: {
             action: {shouldReloadCanvas, forceSendToStreamlit},
@@ -98,7 +99,7 @@ const DrawableCanvas = ({args}: ComponentProps) => {
      * Python-side is in charge of initializing drawing with background color if none provided
      */
     useEffect(() => {
-        if (!isEqual(initialState, initialDrawing)) {
+        if (canvas && !isEqual(initialState, initialDrawing)) {
             canvas.loadFromJSON(initialDrawing, () => {
                 canvas.renderAll()
                 resetState(initialDrawing)
@@ -110,17 +111,12 @@ const DrawableCanvas = ({args}: ComponentProps) => {
      * Update background image
      */
     useEffect(() => {
-        if (backgroundImageURL) {
-            var bgImage = new Image();
-            bgImage.onload = function () {
-                backgroundCanvas.getContext().drawImage(bgImage, 0, 0);
-            };
-            // const params = new URLSearchParams(window.location.search);
-            // const baseUrl = params.get('streamlitUrl')
-            bgImage.src = backgroundImageURL; // baseUrl + backgroundImageURL;
+        if (backgroundImageURL && backgroundCanvas) {
+            fabric.Image.fromURL(backgroundImageURL, (img) => {
+                backgroundCanvas.setBackgroundImage(img, backgroundCanvas.renderAll.bind(backgroundCanvas))
+            })
         }
     }, [
-        canvas,
         backgroundCanvas,
         canvasHeight,
         canvasWidth,
@@ -130,10 +126,24 @@ const DrawableCanvas = ({args}: ComponentProps) => {
     ])
 
     /**
+     * Load OCR text boxes into background layer
+     */
+    useEffect(() => {
+        console.log('initial drawing: ', initialDrawing.rects)
+        if (initialDrawing.rects.backgroundObjects && backgroundCanvas) {
+            initialDrawing.rects.backgroundObjects.forEach((obj: any) => {
+                const rect = new fabric.Rect(obj)
+                backgroundCanvas.add(rect)
+            })
+            backgroundCanvas.renderAll()
+        }
+    }, [backgroundCanvas, initialDrawing])
+
+    /**
      * If state changed from undo/redo/reset, update user-facing canvas
      */
     useEffect(() => {
-        if (shouldReloadCanvas) {
+        if (canvas && shouldReloadCanvas) {
             canvas.loadFromJSON(currentState, () => {
             })
         }
@@ -144,58 +154,60 @@ const DrawableCanvas = ({args}: ComponentProps) => {
      * PS: add initialDrawing in dependency so user drawing update reinits tool
      */
     useEffect(() => {
-        // Update canvas events with selected tool
-        const selectedTool = new tools[drawingMode](canvas) as FabricTool
-        const cleanupToolEvents = selectedTool.configureCanvas({
-            fillColor: fillColor,
-            strokeWidth: strokeWidth,
-            strokeColor: strokeColor,
-            displayRadius: displayRadius,
-        })
+        if (canvas) {
+            // Update canvas events with selected tool
+            const selectedTool = new tools[drawingMode](canvas) as FabricTool
+            const cleanupToolEvents = selectedTool.configureCanvas({
+                fillColor: fillColor,
+                strokeWidth: strokeWidth,
+                strokeColor: strokeColor,
+                displayRadius: displayRadius,
+            })
 
-        canvas.on("mouse:up", (e: any) => {
-            saveState(canvas.toJSON())
-            if (e["button"] === 3) {
-                forceStreamlitUpdate()
-            }
-        })
-
-        canvas.on("mouse:dblclick", () => {
-            saveState(canvas.toJSON())
-        })
-
-        canvas.on('mouse:down', (options) => {
-            if (options.target) {
-                if (options.target.type === 'rect') {
-                    const selectObject = canvas.getActiveObject()
-                    const selectIndex = canvas.getObjects().indexOf(selectObject)
-
-                    selectObject.selectionBackgroundColor = 'rgba(63,245,39,0.5)'
-
-                    setSelectedRect(selectIndex)
-
-                    const data = canvas
-                        .getContext()
-                        .canvas.toDataURL()
-                    Streamlit.setComponentValue({
-                        data: data,
-                        width: canvas.getWidth(),
-                        height: canvas.getHeight(),
-                        raw: canvas.toObject(),
-                        selectIndex: selectIndex
-                    })
+            canvas.on("mouse:up", (e: any) => {
+                saveState(canvas.toJSON())
+                if (e["button"] === 3) {
+                    forceStreamlitUpdate()
                 }
-            } else {
-                setSelectedRect(-1)
-            }
-        });
+            })
 
-        // Cleanup tool + send data to Streamlit events
-        return () => {
-            cleanupToolEvents()
-            canvas.off("mouse:up")
-            canvas.off("mouse:dblclick")
-            canvas.off("mouse:down")
+            canvas.on("mouse:dblclick", () => {
+                saveState(canvas.toJSON())
+            })
+
+            canvas.on('mouse:down', (options) => {
+                if (options.target) {
+                    if (options.target.type === 'rect') {
+                        const selectObject = canvas.getActiveObject()
+                        const selectIndex = canvas.getObjects().indexOf(selectObject)
+
+                        selectObject.selectionBackgroundColor = 'rgba(63,245,39,0.5)'
+
+                        setSelectedRect(selectIndex)
+
+                        const data = canvas
+                            .getContext()
+                            .canvas.toDataURL()
+                        Streamlit.setComponentValue({
+                            data: data,
+                            width: canvas.getWidth(),
+                            height: canvas.getHeight(),
+                            raw: canvas.toObject(),
+                            selectIndex: selectIndex
+                        })
+                    }
+                } else {
+                    setSelectedRect(-1)
+                }
+            });
+
+            // Cleanup tool + send data to Streamlit events
+            return () => {
+                cleanupToolEvents()
+                canvas.off("mouse:up")
+                canvas.off("mouse:dblclick")
+                canvas.off("mouse:down")
+            }
         }
     }, [
         canvas,
