@@ -121,7 +121,7 @@ class DataProcessor:
                 "y2": y2,
             },
             "value": initial_rect["text"],
-            # "label": initial_rect["label"],
+            "label": "",  # initial_rect["label"],
         }
 
         return rect
