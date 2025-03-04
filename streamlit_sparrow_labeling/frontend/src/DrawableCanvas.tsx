@@ -108,13 +108,23 @@ const DrawableCanvas = ({args}: ComponentProps) => {
     }, [canvas, initialDrawing, initialState, resetState])
 
     /**
-     * Update background image
+     * Update background image and OCR text boxes
      */
     useEffect(() => {
-        if (backgroundImageURL && backgroundCanvas) {
-            fabric.Image.fromURL(backgroundImageURL, (img) => {
-                backgroundCanvas.setBackgroundImage(img, backgroundCanvas.renderAll.bind(backgroundCanvas))
-            })
+        if (backgroundCanvas) {
+            backgroundCanvas.clear()
+            if (backgroundImageURL) {
+                fabric.Image.fromURL(backgroundImageURL, (img) => {
+                    backgroundCanvas.setBackgroundImage(img, backgroundCanvas.renderAll.bind(backgroundCanvas))
+                })
+            }
+            if (initialDrawing.rects.backgroundObjects) {
+                initialDrawing.rects.backgroundObjects.forEach((obj: any) => {
+                    const rect = new fabric.Rect(obj)
+                    backgroundCanvas.add(rect)
+                })
+                backgroundCanvas.renderAll()
+            }
         }
     }, [
         backgroundCanvas,
@@ -122,22 +132,9 @@ const DrawableCanvas = ({args}: ComponentProps) => {
         canvasWidth,
         backgroundColor,
         backgroundImageURL,
+        initialDrawing,
         saveState,
     ])
-
-    /**
-     * Load OCR text boxes into background layer
-     */
-    useEffect(() => {
-        console.log('initial drawing: ', initialDrawing.rects)
-        if (initialDrawing.rects.backgroundObjects && backgroundCanvas) {
-            initialDrawing.rects.backgroundObjects.forEach((obj: any) => {
-                const rect = new fabric.Rect(obj)
-                backgroundCanvas.add(rect)
-            })
-            backgroundCanvas.renderAll()
-        }
-    }, [backgroundCanvas, initialDrawing])
 
     /**
      * If state changed from undo/redo/reset, update user-facing canvas

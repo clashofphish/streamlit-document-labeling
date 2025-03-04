@@ -38,8 +38,8 @@ class DataProcessor:
             "text": rect["text"],
             "line_n": rect["line_n"],
             "word_n": rect["word_n"],
-            "fill": "rgba(0, 151, 255, 0.3)",
-            "stroke": "rgba(0, 50, 255, 0.7)",
+            "fill": "rgba(0, 151, 255, 0.3)",  # blue
+            "stroke": "rgba(0, 50, 255, 0.7)",  # dark blue
             "strokeWidth": 2,
             "strokeDashArray": None,
             "strokeLineCap": "butt",

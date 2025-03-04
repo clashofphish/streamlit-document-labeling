@@ -9,11 +9,12 @@ import json
 import math
 import os
 import csv
+import pandas as pd
 
 st.set_page_config(page_title="Sparrow Labeling", layout="wide")
 
 
-def save_and_continue(config, current_index, selected_classes, result_rects):
+def save_and_continue(config, current_index, selected_classes, save_sections, doc_type):
     save_file = "annotations.csv"
     row = config.iloc[current_index]
     data = {
@@ -23,7 +24,8 @@ def save_and_continue(config, current_index, selected_classes, result_rects):
         "class_1": selected_classes[0],
         "class_2": selected_classes[1],
         "class_3": selected_classes[2],
-        "rects_data": json.dumps(result_rects.rects_data),
+        "annotated_text": json.dumps(save_sections),
+        "doc_type": doc_type,
     }
     if not os.path.exists(save_file):
         with open(save_file, "w") as f:
@@ -55,15 +57,15 @@ def run(img_file, rects_file, labels, config, current_index):
     docImg = Image.open(img_file)
 
     if (
-        "saved_state" not in st.session_state
+        "image_state" not in st.session_state
         or st.session_state["current_index"] != current_index
     ):
         with open(rects_file, "r") as f:
-            saved_state = json.load(f)
-            st.session_state["saved_state"] = saved_state
+            image_state = json.load(f)
+            st.session_state["image_state"] = image_state
             st.session_state["current_index"] = current_index
     else:
-        saved_state = st.session_state["saved_state"]
+        image_state = st.session_state["image_state"]
 
     show_ocr_boxes = st.checkbox("Show OCR Boxes", True)
 
@@ -76,21 +78,21 @@ def run(img_file, rects_file, labels, config, current_index):
         height = 1296  # 1024
         width = 864  # 792
 
-        doc_height = saved_state["meta"]["image_size"]["height"]
-        doc_width = saved_state["meta"]["image_size"]["width"]
+        doc_height = image_state["meta"]["image_size"]["height"]
+        doc_width = image_state["meta"]["image_size"]["width"]
 
         canvas_width = canvas_available_width(ui_width)
 
         initial_rects = (
-            saved_state
+            image_state
             if show_ocr_boxes
-            else {"meta": saved_state["meta"], "words": []}
+            else {"meta": image_state["meta"], "words": []}
         )
 
         result_rects = st_sparrow_labeling(
-            fill_color="rgba(0, 151, 255, 0.3)",
+            fill_color="rgba(0, 0, 0, 0)",  # No fill color
             stroke_width=2,
-            stroke_color="rgba(0, 50, 255, 0.7)",
+            stroke_color="rgba(255, 0, 0, 1)",  # Red stroke color
             background_image=docImg,
             initial_rects=initial_rects,
             height=height * 1.5,  # Increase the canvas height
@@ -111,6 +113,7 @@ def run(img_file, rects_file, labels, config, current_index):
 
     with col2:
         with st.container():
+            doc_type = st.text_input("Document Type", key="doc_type")
             classes = [
                 "title page",
                 "table of contents",
@@ -136,14 +139,18 @@ def run(img_file, rects_file, labels, config, current_index):
 
         with st.container():
             if result_rects is not None:
+                print(f"**Result Rects: {result_rects.rects_data}")
                 with st.form(key="fields_form"):
+                    save_sections = []  # Save the annotated selections
                     for i, rect in enumerate(result_rects.rects_data["words"]):
-                        selected_text = concatenate_text_within_selection(
-                            rect, saved_state["words"]
-                        )
+                        print(f"**Rect: {rect}")
+                        print(f"**Saved State: {[k for k in image_state.keys()]}")
+                        selected_text = get_selected_words(rect, image_state["words"])
+                        joined_text = join_text(selected_text)
+                        print(f"**Selected Text: {selected_text}")
                         st.text_area(
                             f"Text {i + 1}",
-                            selected_text,
+                            joined_text,
                             key=f"text_{i}",
                             height=100,
                         )
@@ -153,6 +160,13 @@ def run(img_file, rects_file, labels, config, current_index):
                         )
                         st.markdown("---")
 
+                        save_sections.append(
+                            {
+                                "text": st.session_state.get(f"text_{i}", ""),
+                                "label": st.session_state.get(f"label_{i}", ""),
+                            }
+                        )
+
                     submit = st.form_submit_button("Save and Continue", type="primary")
                     back = st.form_submit_button("Back")
                     if submit:
@@ -160,25 +174,32 @@ def run(img_file, rects_file, labels, config, current_index):
                             config,
                             current_index,
                             [class_1, class_2, class_3],
-                            result_rects,
+                            save_sections,
+                            doc_type,
                         )
                         next_index = (current_index + 1) % len(config)
                         st.session_state["current_index"] = next_index
-                        st.session_state.pop("saved_state", None)
+                        st.session_state.pop("image_state", None)
                         st.rerun()
                     if back:
                         prev_index = (current_index - 1) % len(config)
                         st.session_state["current_index"] = prev_index
-                        st.session_state.pop("saved_state", None)
+                        st.session_state.pop("image_state", None)
                         st.rerun()
 
 
-def concatenate_text_within_selection(selection_rect, words):
+def get_selected_words(selection_rect, words):
     selected_texts = []
     for word in words:
         if is_within_selection(selection_rect, word["rect"]):
-            selected_texts.append(word["text"])
-    return "\n".join(selected_texts)
+            selected_texts.append(
+                {
+                    "line_n": word["line_n"],
+                    "word_n": word["word_n"],
+                    "text": word["text"],
+                }
+            )
+    return selected_texts
 
 
 def is_within_selection(selection_rect, word_rect):
@@ -188,6 +209,15 @@ def is_within_selection(selection_rect, word_rect):
         and word_rect["x2"] <= selection_rect["rect"]["x2"]
         and word_rect["y2"] <= selection_rect["rect"]["y2"]
     )
+
+
+def join_text(selected_words):
+    array_of_words = pd.DataFrame(selected_words, columns=["line_n", "word_n", "text"])
+    array_of_words.sort_values(by=["line_n", "word_n"], inplace=True)
+    words_by_line = array_of_words.groupby("line_n")["text"].apply(
+        lambda x: " ".join(x)
+    )
+    return "\n".join(words_by_line)
 
 
 def canvas_available_width(ui_width):
