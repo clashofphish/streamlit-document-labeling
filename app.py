@@ -18,6 +18,7 @@ def save_and_continue(config, current_index, selected_classes, save_sections, do
     save_file = "annotations.csv"
     row = config.iloc[current_index]
     data = {
+        "opportunityId": row["opportunityId"],
         "attachmentId": row["attachmentId"],
         "image_file_path": row["image_file_path"],
         "ocr_file_path": row["ocr_file_path"],
@@ -51,7 +52,7 @@ def save_and_continue(config, current_index, selected_classes, save_sections, do
                 writer.writerow(data)
 
 
-def run(img_file, rects_file, labels, config, current_index):
+def run(img_file, rects_file, config, current_index):
     ui_width = st_js.st_javascript("window.innerWidth")
 
     docImg = Image.open(img_file)
@@ -122,10 +123,10 @@ def run(img_file, rects_file, labels, config, current_index):
                 "narrative",
                 "acronym list",
                 "clause list",
+                "background",
                 "requirements",
                 "scope",
                 "pay schedule",
-                "background",
                 "other",
                 "None",
             ]
@@ -138,24 +139,30 @@ def run(img_file, rects_file, labels, config, current_index):
             )
 
         with st.container():
+            labels = [
+                "section header",
+                "title",
+                "table of contents",
+                "table",
+                "form field",
+                "other",
+            ]
             if result_rects is not None:
-                print(f"**Result Rects: {result_rects.rects_data}")
                 with st.form(key="fields_form"):
                     save_sections = []  # Save the annotated selections
                     for i, rect in enumerate(result_rects.rects_data["words"]):
-                        print(f"**Rect: {rect}")
-                        print(f"**Saved State: {[k for k in image_state.keys()]}")
                         selected_text = get_selected_words(rect, image_state["words"])
                         joined_text = join_text(selected_text)
-                        print(f"**Selected Text: {selected_text}")
+
                         st.text_area(
                             f"Text {i + 1}",
                             joined_text,
                             key=f"text_{i}",
                             height=100,
                         )
-                        st.text_input(
+                        st.selectbox(
                             f"Label {i + 1}",
+                            labels,
                             key=f"label_{i}",
                         )
                         st.markdown("---")
@@ -229,7 +236,6 @@ def canvas_available_width(ui_width):
 
 
 if __name__ == "__main__":
-    custom_labels = ["", "item", "item_price", "subtotal", "tax", "total"]
     data_config_dir = os.path.abspath(
         os.path.join(
             "..",
@@ -247,7 +253,6 @@ if __name__ == "__main__":
     run(
         config.loc[current_index, "image_file_path"],
         config.loc[current_index, "ocr_file_path"],
-        custom_labels,
         config,
         current_index,
     )

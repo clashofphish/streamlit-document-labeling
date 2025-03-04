@@ -15,7 +15,6 @@ class DataProcessor:
             canvas_rects.append(canvas_rect)
 
         payload = {
-            "version": "4.4.0",
             "objects": [],
             "background": background_color,
             "backgroundObjects": canvas_rects,  # Add OCR text boxes to background layer
@@ -26,7 +25,6 @@ class DataProcessor:
     def construct_canvas_rect(self, rect, doc_height, doc_width, height, width):
         canvas_rect = {
             "type": "rect",
-            "version": "4.4.0",
             "originX": "left",
             "originY": "top",
             "left": round((rect["rect"]["x1"] * width) / doc_width),
@@ -40,29 +38,7 @@ class DataProcessor:
             "word_n": rect["word_n"],
             "fill": "rgba(0, 151, 255, 0.3)",  # blue
             "stroke": "rgba(0, 50, 255, 0.7)",  # dark blue
-            "strokeWidth": 2,
-            "strokeDashArray": None,
-            "strokeLineCap": "butt",
-            "strokeDashOffset": 0,
-            "strokeLineJoin": "miter",
-            "strokeUniform": True,
-            "strokeMiterLimit": 4,
-            "scaleX": 1,
-            "scaleY": 1,
-            "angle": 0,
-            "flipX": False,
-            "flipY": False,
-            "opacity": 1,
-            "shadow": None,
-            "visible": True,
-            "backgroundColor": "",
-            "fillRule": "nonzero",
-            "paintFirst": "fill",
-            "globalCompositeOperation": "source-over",
-            "skewX": 0,
-            "skewY": 0,
-            "rx": 0,
-            "ry": 0,
+            "strokeWidth": 1.25,
         }
 
         return canvas_rect
