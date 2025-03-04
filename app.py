@@ -14,8 +14,10 @@ import pandas as pd
 st.set_page_config(page_title="Sparrow Labeling", layout="wide")
 
 
-def save_and_continue(config, current_index, selected_classes, save_sections, doc_type):
-    save_file = "annotations.csv"
+def save_and_continue(
+    config, current_index, selected_classes, save_sections, doc_type, save_path
+):
+    save_file = os.path.join(save_path, "annotated_files_sota01.csv")
     row = config.iloc[current_index]
     data = {
         "opportunityId": row["opportunityId"],
@@ -183,6 +185,7 @@ def run(img_file, rects_file, config, current_index):
                             [class_1, class_2, class_3],
                             save_sections,
                             doc_type,
+                            st.session_state["data_file_dir"],
                         )
                         next_index = (current_index + 1) % len(config)
                         st.session_state["current_index"] = next_index
@@ -236,17 +239,21 @@ def canvas_available_width(ui_width):
 
 
 if __name__ == "__main__":
-    data_config_dir = os.path.abspath(
+    data_file_dir = os.path.abspath(
         os.path.join(
             "..",
             "anx_llm_research",
             "fine_tuning",
             "modeling_data",
             "contract_files",
-            "converted_files_sot01a.csv",
         )
     )
-    config = load_config_dataframe(data_config_dir)
+    st.session_state.setdefault("data_file_dir", data_file_dir)
+    data_config_file_path = os.path.join(
+        data_file_dir,
+        "converted_files_sot01a.csv",
+    )
+    config = load_config_dataframe(data_config_file_path)
     print(f"**Config: {config.loc[0, 'image_file_path']}")
 
     current_index = st.session_state.get("current_index", 0)
