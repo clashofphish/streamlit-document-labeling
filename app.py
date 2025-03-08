@@ -1,3 +1,5 @@
+"""Modified with the help of Github Copilot AI and reviewed by a human."""
+
 from PIL import Image
 import streamlit as st
 import streamlit_nested_layout
@@ -14,16 +16,13 @@ import pandas as pd
 st.set_page_config(page_title="Sparrow Labeling", layout="wide")
 
 
-def save_and_continue(
-    config, current_index, selected_classes, save_sections, doc_type, save_path
-):
-    save_file = os.path.join(save_path, "annotated_files_sota01.csv")
-    row = config.iloc[current_index]
+def save_and_continue(config_row, selected_classes, save_sections, doc_type, save_file):
     data = {
-        "opportunityId": row["opportunityId"],
-        "attachmentId": row["attachmentId"],
-        "image_file_path": row["image_file_path"],
-        "ocr_file_path": row["ocr_file_path"],
+        "opportunityId": config_row["opportunityId"],
+        "attachmentId": config_row["attachmentId"],
+        "image_file_path": config_row["image_file_path"],
+        "ocr_file_path": config_row["ocr_file_path"],
+        "fileName": config_row["fileName"],
         "class_1": selected_classes[0],
         "class_2": selected_classes[1],
         "class_3": selected_classes[2],
@@ -31,27 +30,16 @@ def save_and_continue(
         "doc_type": doc_type,
     }
     if not os.path.exists(save_file):
-        with open(save_file, "w") as f:
-            writer = csv.DictWriter(f, fieldnames=data.keys())
-            writer.writeheader()
-            writer.writerow(data)
+        df = pd.DataFrame([data])
+        df.to_csv(save_file, index=False)
     else:
-        with open(save_file, "r") as f:
-            existing_data = [row for row in csv.DictReader(f)]
-        existing_ids = [row["attachmentId"] for row in existing_data]
-        if data["attachmentId"] in existing_ids:
-            existing_data = [
-                row if row["attachmentId"] != data["attachmentId"] else data
-                for row in existing_data
-            ]
-            with open(save_file, "w") as f:
-                writer = csv.DictWriter(f, fieldnames=data.keys())
-                writer.writeheader()
-                writer.writerows(existing_data)
+        df = pd.read_csv(save_file)
+        match_index = df.loc[df["image_file_path"] == data["image_file_path"]].index
+        if len(match_index) > 0:
+            df.update(pd.DataFrame([data], index=match_index))
         else:
-            with open(save_file, "a") as f:
-                writer = csv.DictWriter(f, fieldnames=data.keys())
-                writer.writerow(data)
+            df.loc[len(df)] = data
+        df.to_csv(save_file, index=False)
 
 
 def run(img_file, rects_file, config, current_index):
@@ -70,12 +58,25 @@ def run(img_file, rects_file, config, current_index):
     else:
         image_state = st.session_state["image_state"]
 
-    show_ocr_boxes = st.checkbox("Show OCR Boxes", True)
+    # Create columns with custom width ratios (1:2:2)
+    col1, col2, col3 = st.columns([2, 2, 2])
+
+    # Add components to columns
+    with col1:
+        show_ocr_boxes = st.checkbox("Show OCR Boxes", True)
+
+    with col2:
+        st.text(f"File Name:   {config.loc[current_index, 'fileName']}")
+
+    with col3:
+        im_p = config.loc[current_index, "image_file_path"]
+        pn = im_p.split("_")[-1].split(".")[0]
+        st.text(f"Page Number:  {pn}")
 
     assign_labels = st.checkbox("Assign Labels", True)
     mode = "transform" if assign_labels else "rect"
 
-    col1, col2 = st.columns([4, 6])
+    col1, col2 = st.columns([6, 4])
 
     with col1:
         height = 1296  # 1024
@@ -98,8 +99,8 @@ def run(img_file, rects_file, config, current_index):
             stroke_color="rgba(255, 0, 0, 1)",  # Red stroke color
             background_image=docImg,
             initial_rects=initial_rects,
-            height=height * 1.5,  # Increase the canvas height
-            width=width * 1.5,  # Increase the canvas width
+            height=height * 2,  # Increase the canvas height
+            width=width * 2,  # Increase the canvas width
             drawing_mode=mode,
             display_toolbar=True,
             update_streamlit=True,
@@ -180,12 +181,11 @@ def run(img_file, rects_file, config, current_index):
                     back = st.form_submit_button("Back")
                     if submit:
                         save_and_continue(
-                            config,
-                            current_index,
+                            config.loc[current_index],
                             [class_1, class_2, class_3],
                             save_sections,
                             doc_type,
-                            st.session_state["data_file_dir"],
+                            st.session_state["save_file_path"],
                         )
                         next_index = (current_index + 1) % len(config)
                         st.session_state["current_index"] = next_index
@@ -239,6 +239,9 @@ def canvas_available_width(ui_width):
 
 
 if __name__ == "__main__":
+    config_file_name = "converted_files_sot01a.csv"
+    annotated_data_file_name = "annotated_files_sot01a.01.csv"
+
     data_file_dir = os.path.abspath(
         os.path.join(
             "..",
@@ -248,18 +251,28 @@ if __name__ == "__main__":
             "contract_files",
         )
     )
+    save_file_path = os.path.join(data_file_dir, annotated_data_file_name)
     st.session_state.setdefault("data_file_dir", data_file_dir)
-    data_config_file_path = os.path.join(
-        data_file_dir,
-        "converted_files_sot01a.csv",
-    )
-    config = load_config_dataframe(data_config_file_path)
-    print(f"**Config: {config.loc[0, 'image_file_path']}")
+    st.session_state.setdefault("save_file_path", save_file_path)
+
+    if "config_data" not in st.session_state:
+        data_config_file_path = os.path.join(
+            data_file_dir,
+            config_file_name,
+        )
+        st.session_state["config_data"] = load_config_dataframe(data_config_file_path)
+
+        annotated_data = (
+            pd.read_csv(save_file_path) if os.path.exists(save_file_path) else None
+        )
+        if annotated_data is not None:
+            annotated_index = len(annotated_data) - 1
+            st.session_state["current_index"] = annotated_index
 
     current_index = st.session_state.get("current_index", 0)
     run(
-        config.loc[current_index, "image_file_path"],
-        config.loc[current_index, "ocr_file_path"],
-        config,
+        st.session_state["config_data"].loc[current_index, "image_file_path"],
+        st.session_state["config_data"].loc[current_index, "ocr_file_path"],
+        st.session_state["config_data"],
         current_index,
     )
