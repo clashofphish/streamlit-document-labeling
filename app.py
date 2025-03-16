@@ -104,7 +104,6 @@ def run(img_file, rects_file, config, annotated_config, current_index):
     if current_index in annotated_config.index:
         annotated_row = annotated_config.loc[current_index]
         ci1, ci2, ci3 = check_existing_classes(annotated_row, doc_type_classes)
-        print(f"ci1: {ci1}, ci2: {ci2}, ci3: {ci3}")
         doc_type = annotated_row["doc_type"]
         parsed_text = json.loads(annotated_row["annotated_text"])
     else:
@@ -278,8 +277,8 @@ def run(img_file, rects_file, config, annotated_config, current_index):
 
 def check_existing_classes(current_config_row, classes):
     index1 = 0
-    index2 = None
-    index3 = None
+    index2 = classes.index("None")
+    index3 = classes.index("None")
     try:
         if current_config_row["class_1"] in classes:
             index1 = classes.index(current_config_row["class_1"])
