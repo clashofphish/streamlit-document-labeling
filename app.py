@@ -339,7 +339,7 @@ def canvas_available_width(ui_width):
 
 
 if __name__ == "__main__":
-    config_file_name = "converted_files_sot01a.csv"
+    config_file_name = "converted_files_sot01a_start7pages.csv"
     annotated_data_file_name = "annotated_files_sot01a.01.csv"
 
     data_file_dir = os.path.abspath(
