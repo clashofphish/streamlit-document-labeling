@@ -36,21 +36,21 @@ def save_and_continue(config_row, selected_classes, save_sections, doc_type, sav
     df = pd.DataFrame([data])
     df.set_index("index", inplace=True)
     if not os.path.exists(save_file):
+        return_df = df
         df.to_csv(save_file)
     else:
         existing_df = load_annotated_config_dataframe(save_file)
-        match_index = existing_df.loc[
-            existing_df["image_file_path"] == df["image_file_path"]
-        ].index
-        if len(match_index) > 0:
-            existing_df.update(pd.DataFrame([data], index=match_index))
+        if (len(df.index) == 1) & (df.iloc[0].name in list(existing_df.index)):
+            existing_df.update(df)
+            return_df = existing_df
         else:
-            existing_df = pd.concat(
-                [existing_df, pd.DataFrame([data], index=match_index)],
+            return_df = pd.concat(
+                [existing_df, df],
                 ignore_index=False,
             )
-        df.to_csv(save_file)
-    return df
+            print(f"append df: {df}")
+        return_df.to_csv(save_file)
+    return return_df
 
 
 def run(img_file, rects_file, config, annotated_config, current_index):
@@ -108,14 +108,13 @@ def run(img_file, rects_file, config, annotated_config, current_index):
         "None",
     ]
     # Select out annotated row
-    print(f"current_index: {current_index}; annotated_config: {annotated_config.index}")
     if current_index in annotated_config.index:
         annotated_row = annotated_config.loc[current_index]
         ci1, ci2, ci3 = check_existing_classes(annotated_row, doc_type_classes)
         doc_type = annotated_row["doc_type"]
         parsed_text = json.loads(annotated_row["annotated_text"])
         print(
-            f"ci1: {ci1} ci2: {ci2} ci3: {ci3} doc type: {doc_type} parsed_text: {parsed_text}"
+            f"ci1: {ci1}, ci2: {ci2}, ci3: {ci3} doc_type: {doc_type} parsed_text: {parsed_text}"
         )
     else:
         annotated_row = None
@@ -196,9 +195,6 @@ def run(img_file, rects_file, config, annotated_config, current_index):
     with col2:
         with st.container():
             doc_type = st.text_input("Document Type", key="doc_type", value=doc_type)
-
-            print(f"current_index: {current_index}")
-            print(f"ci1: {ci1}, ci2: {ci2}, ci3: {ci3}")
             class_1 = st.selectbox(
                 "Class 1", doc_type_classes, key="class_1", index=ci1
             )
@@ -390,9 +386,7 @@ if __name__ == "__main__":
             else None
         )
         if st.session_state["annotated_config_data"] is not None:
-            print(st.session_state["annotated_config_data"].index)
             annotated_index = max(st.session_state["annotated_config_data"].index)
-            print(f"annotated_index: {annotated_index}")
             temp_index = st.session_state["config_data"].index.get_loc(annotated_index)
             config_index = st.session_state["config_data"].iloc[temp_index + 1].name
             st.session_state["current_index"] = config_index
