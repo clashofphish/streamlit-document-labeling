@@ -21,7 +21,7 @@ st.set_page_config(page_title="Sparrow Labeling", layout="wide")
 
 def save_and_continue(config_row, selected_classes, save_sections, doc_type, save_file):
     data = {
-        "index": config_row["index"],
+        "index": config_row.name,
         "opportunityId": config_row["opportunityId"],
         "attachmentId": config_row["attachmentId"],
         "image_file_path": config_row["image_file_path"],
@@ -33,17 +33,24 @@ def save_and_continue(config_row, selected_classes, save_sections, doc_type, sav
         "annotated_text": json.dumps(save_sections),
         "doc_type": doc_type,
     }
+    df = pd.DataFrame([data])
+    df.set_index("index", inplace=True)
     if not os.path.exists(save_file):
-        df = pd.DataFrame([data])
-        df.to_csv(save_file, index=False)
+        df.to_csv(save_file)
     else:
-        df = pd.read_csv(save_file)
-        match_index = df.loc[df["image_file_path"] == data["image_file_path"]].index
+        existing_df = load_annotated_config_dataframe(save_file)
+        match_index = existing_df.loc[
+            existing_df["image_file_path"] == df["image_file_path"]
+        ].index
         if len(match_index) > 0:
-            df.update(pd.DataFrame([data], index=match_index))
+            existing_df.update(pd.DataFrame([data], index=match_index))
         else:
-            df.loc[len(df)] = data
-        df.to_csv(save_file, index=False)
+            existing_df = pd.concat(
+                [existing_df, pd.DataFrame([data], index=match_index)],
+                ignore_index=False,
+            )
+        df.to_csv(save_file)
+    return df
 
 
 def run(img_file, rects_file, config, annotated_config, current_index):
@@ -69,7 +76,7 @@ def run(img_file, rects_file, config, annotated_config, current_index):
     with col2:
         with st.form(key="index_form"):
             st.text_input(
-                f"Jump to index (annotated max {len(annotated_config)-1})",
+                f"Jump to index (annotated max {max(annotated_config.index)})",
                 value=str(current_index),
                 key="jump_index",
             )
@@ -101,11 +108,15 @@ def run(img_file, rects_file, config, annotated_config, current_index):
         "None",
     ]
     # Select out annotated row
+    print(f"current_index: {current_index}; annotated_config: {annotated_config.index}")
     if current_index in annotated_config.index:
         annotated_row = annotated_config.loc[current_index]
         ci1, ci2, ci3 = check_existing_classes(annotated_row, doc_type_classes)
         doc_type = annotated_row["doc_type"]
         parsed_text = json.loads(annotated_row["annotated_text"])
+        print(
+            f"ci1: {ci1} ci2: {ci2} ci3: {ci3} doc type: {doc_type} parsed_text: {parsed_text}"
+        )
     else:
         annotated_row = None
         ci1, ci2, ci3 = 0, None, None
@@ -212,7 +223,9 @@ def run(img_file, rects_file, config, annotated_config, current_index):
                 "form field",
                 "appendix title",
                 "section title",
+                "section description header",
                 "clause list title",  # for the lines that say FAR clauses included...
+                "contract type",
                 "table",
                 "other",
             ]
@@ -248,28 +261,37 @@ def run(img_file, rects_file, config, annotated_config, current_index):
                     & (save_sections == [])
                 ):
                     save_sections = parsed_text
-                submit = st.form_submit_button("Save and Continue", type="primary")
-                back = st.form_submit_button("Back")
-                next_index = st.form_submit_button("Next")
-                if submit:
-                    save_and_continue(
+                submit_button = st.form_submit_button(
+                    "Save and Continue", type="primary"
+                )
+                back_button = st.form_submit_button("Back")
+                next_index_button = st.form_submit_button("Next")
+                # get indexes
+                temp_index = st.session_state["config_data"].index.get_loc(
+                    current_index
+                )
+                next_index = st.session_state["config_data"].iloc[temp_index + 1].name
+                prev_index = st.session_state["config_data"].iloc[temp_index - 1].name
+                # save or continue
+                if submit_button:
+                    st.session_state["annotated_config_data"] = save_and_continue(
                         config.loc[current_index],
                         [class_1, class_2, class_3],
                         save_sections,
                         doc_type,
                         st.session_state["save_file_path"],
                     )
-                    next_index = (current_index + 1) % len(config)
+                    # next_index = (current_index + 1) % len(config)
                     st.session_state["current_index"] = next_index
                     st.session_state.pop("image_state", None)
                     st.rerun()
-                if back:
-                    prev_index = (current_index - 1) % len(config)
+                if back_button:
+                    # prev_index = (current_index - 1) % len(config)
                     st.session_state["current_index"] = prev_index
                     st.session_state.pop("image_state", None)
                     st.rerun()
-                if next_index:
-                    next_index = (current_index + 1) % len(config)
+                if next_index_button:
+                    # next_index = (current_index + 1) % len(config)
                     st.session_state["current_index"] = next_index
                     st.session_state.pop("image_state", None)
                     st.rerun()
@@ -368,10 +390,12 @@ if __name__ == "__main__":
             else None
         )
         if st.session_state["annotated_config_data"] is not None:
-            annotated_index = (
-                max(st.session_state["annotated_config_data"].loc[:, "index"]) + 1
-            )
-            st.session_state["current_index"] = annotated_index
+            print(st.session_state["annotated_config_data"].index)
+            annotated_index = max(st.session_state["annotated_config_data"].index)
+            print(f"annotated_index: {annotated_index}")
+            temp_index = st.session_state["config_data"].index.get_loc(annotated_index)
+            config_index = st.session_state["config_data"].iloc[temp_index + 1].name
+            st.session_state["current_index"] = config_index
 
     current_index = st.session_state.get("current_index", 0)
     run(

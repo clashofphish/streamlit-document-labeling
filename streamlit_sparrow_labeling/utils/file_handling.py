@@ -20,6 +20,8 @@ def load_config_dataframe(config_file: str) -> pd.DataFrame:
         raise ValueError(
             f"DataFrame does not have the expected columns: {expected_columns}"
         )
+
+    df.set_index("index", inplace=True)
     return df
 
 
@@ -46,4 +48,6 @@ def load_annotated_config_dataframe(config_file: str) -> pd.DataFrame:
         raise ValueError(
             f"DataFrame does not have the expected columns: {expected_columns}"
         )
+
+    df.set_index("index", inplace=True)
     return df
