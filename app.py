@@ -48,7 +48,6 @@ def save_and_continue(config_row, selected_classes, save_sections, doc_type, sav
                 [existing_df, df],
                 ignore_index=False,
             )
-            print(f"append df: {df}")
         return_df.to_csv(save_file)
     return return_df
 
@@ -114,7 +113,7 @@ def run(img_file, rects_file, config, annotated_config, current_index):
         doc_type = annotated_row["doc_type"]
         parsed_text = json.loads(annotated_row["annotated_text"])
         print(
-            f"ci1: {ci1}, ci2: {ci2}, ci3: {ci3} doc_type: {doc_type} parsed_text: {parsed_text}"
+            f"current_index: {current_index}; ci1, ci2, ci3: {ci1}, {ci2}, {ci3}; doc_type: {doc_type}"
         )
     else:
         annotated_row = None
